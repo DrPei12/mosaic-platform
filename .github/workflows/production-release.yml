@@ -156,6 +156,10 @@ jobs:
         shell: pwsh
         run: .\scripts\verify-release.ps1 -BaselineCommit $env:MOSAIC_PUBLIC_SNAPSHOT_BASELINE -RunTests -BuildImages -RequireImageDigests -RequireConfigHmac:$false
 
+      - name: API diagnostics after release failure
+        if: failure()
+        run: pnpm verify:api
+
       - name: Assert CI receipt is bounded
         shell: pwsh
         run: |
