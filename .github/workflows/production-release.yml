@@ -38,6 +38,7 @@ jobs:
       DASHSCOPE_API_KEY: unit-test-key
       RUN_LIVE_PROVIDER_TESTS: "0"
       MOSAIC_RELEASE_RUN_CONCURRENCY_GATE: "1"
+      MOSAIC_PUBLIC_SNAPSHOT_BASELINE: "5745b8c0b4fd5b8374219a39470ef4ed935a8888"
       MOSAIC_RELEASE_HMAC_KEY: ${{ secrets.MOSAIC_RELEASE_HMAC_KEY }}
     services:
       postgres:
@@ -151,7 +152,7 @@ jobs:
 
       - name: Static release verification and source tests
         shell: pwsh
-        run: .\scripts\verify-release.ps1 -RunTests -BuildImages -RequireImageDigests -RequireConfigHmac:$false
+        run: .\scripts\verify-release.ps1 -BaselineCommit $env:MOSAIC_PUBLIC_SNAPSHOT_BASELINE -RunTests -BuildImages -RequireImageDigests -RequireConfigHmac:$false
 
       - name: Assert CI receipt is bounded
         shell: pwsh

@@ -110,3 +110,8 @@ pwsh -NoProfile -File scripts/verify-release.ps1 -StaticOnly
 `.runtime/`、`.release/`、`.env*`、Playwright 输出、真实 Provider evidence、运行时凭据和
 本地演示账号凭据均被排除。仓库当前未选择开源许可证；公开可见不等于自动授予复制、修改或
 再分发权利。
+
+公共仓库采用不携带原 Git 对象的单提交源码快照。首个公开提交
+`5745b8c0b4fd5b8374219a39470ef4ed935a8888` 是该公共仓库发布脚本的 ancestry baseline；
+原本地来源提交记录在公开提交说明中。该打包基线只解决 Git 历史可达性，不改变上述真实模型
+证据边界，也不会使非 live CI receipt 从 `BOUNDED` 变为 `PASS`。
