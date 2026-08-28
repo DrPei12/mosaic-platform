@@ -7,7 +7,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { scanBoundaries } from "./check-boundaries.mjs";
 
 const temporaryRoots = [];
@@ -57,7 +57,7 @@ describe("check-boundaries scanner", () => {
 
     assert.equal(result.violations.length, 8);
     assert.deepEqual(
-      result.violations.map((path) => path.split("\\").at(-1)).sort(),
+      result.violations.map((path) => basename(path)).sort(),
       [
         "alias.ts",
         "dynamic.ts",
@@ -83,7 +83,7 @@ describe("check-boundaries scanner", () => {
     const result = scanBoundaries({ projectRoot: root });
 
     assert.deepEqual(result.violations, []);
-    assert.deepEqual(result.sourceFiles.map((path) => path.split("\\").at(-1)), ["clean.ts", "export-local.ts"]);
+    assert.deepEqual(result.sourceFiles.map((path) => basename(path)), ["clean.ts", "export-local.ts"]);
   });
 
   it("forbids every consumer root from importing demo scenario or state directly", () => {
@@ -106,7 +106,7 @@ describe("check-boundaries scanner", () => {
     const result = scanBoundaries({ projectRoot: root });
 
     assert.deepEqual(
-      result.violations.map((path) => path.split("\\").at(-1)).sort(),
+      result.violations.map((path) => basename(path)).sort(),
       [
         "dynamic.ts",
         "dynamic.ts",
@@ -128,7 +128,7 @@ describe("check-boundaries scanner", () => {
     const second = scanBoundaries({ projectRoot: root });
 
     assert.deepEqual(first, second);
-    assert.deepEqual(first.sourceFiles.map((path) => path.split("\\").at(-1)), ["a.ts", "z.ts"]);
+    assert.deepEqual(first.sourceFiles.map((path) => basename(path)), ["a.ts", "z.ts"]);
 
     rmSync(join(root, "src/shared/layout"), { recursive: true, force: true });
     assert.throws(
