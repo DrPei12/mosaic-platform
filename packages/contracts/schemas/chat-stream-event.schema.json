@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mosaic.internal/schemas/chat-stream-event.schema.json",
+  "$defs": {
+    "nonEmptyId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "errorBody": {
+      "$ref": "https://mosaic.internal/schemas/api-error.schema.json#/properties/error"
+    }
+  },
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "request_id", "conversation_id", "message_id", "sequence"],
+      "properties": {
+        "type": { "const": "started" },
+        "request_id": { "$ref": "#/$defs/nonEmptyId" },
+        "conversation_id": { "$ref": "#/$defs/nonEmptyId" },
+        "message_id": { "$ref": "#/$defs/nonEmptyId" },
+        "sequence": { "const": 0 }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "request_id", "conversation_id", "message_id", "sequence", "delta"],
+      "properties": {
+        "type": { "const": "delta" },
+        "request_id": { "$ref": "#/$defs/nonEmptyId" },
+        "conversation_id": { "$ref": "#/$defs/nonEmptyId" },
+        "message_id": { "$ref": "#/$defs/nonEmptyId" },
+        "sequence": { "type": "integer", "minimum": 0 },
+        "delta": { "type": "string", "minLength": 1 }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "request_id", "conversation_id", "message_id", "sequence", "content"],
+      "properties": {
+        "type": { "const": "completed" },
+        "request_id": { "$ref": "#/$defs/nonEmptyId" },
+        "conversation_id": { "$ref": "#/$defs/nonEmptyId" },
+        "message_id": { "$ref": "#/$defs/nonEmptyId" },
+        "sequence": { "type": "integer", "minimum": 0 },
+        "content": { "type": "string" }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "request_id", "conversation_id", "message_id", "sequence"],
+      "properties": {
+        "type": { "const": "stopped" },
+        "request_id": { "$ref": "#/$defs/nonEmptyId" },
+        "conversation_id": { "$ref": "#/$defs/nonEmptyId" },
+        "message_id": { "$ref": "#/$defs/nonEmptyId" },
+        "sequence": { "type": "integer", "minimum": 0 }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "request_id", "conversation_id", "message_id", "sequence", "error"],
+      "properties": {
+        "type": { "const": "failed" },
+        "request_id": { "$ref": "#/$defs/nonEmptyId" },
+        "conversation_id": { "$ref": "#/$defs/nonEmptyId" },
+        "message_id": { "$ref": "#/$defs/nonEmptyId" },
+        "sequence": { "type": "integer", "minimum": 0 },
+        "error": { "$ref": "#/$defs/errorBody" }
+      }
+    }
+  ]
+}

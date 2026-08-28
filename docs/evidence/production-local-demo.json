@@ -1,0 +1,30 @@
+{
+  "status": "control_plane_ok",
+  "scope": "local-production-control-plane",
+  "origin": "http://127.0.0.1:53000",
+  "account": "demo-final@mosaic.local",
+  "observedAt": "2026-08-27T06:32:28.289Z",
+  "observations": {
+    "forcedPasswordChange": true,
+    "modelCards": 6,
+    "unavailableCards": 6,
+    "availableCards": 0,
+    "usageHasBalance": true,
+    "revokedStaleSessions": 1,
+    "currentSessionVisible": true
+  },
+  "screenshots": [
+    "screenshots/production-local-first-login.png",
+    "screenshots/production-local-models.png",
+    "screenshots/production-local-usage.png",
+    "screenshots/production-local-generations.png",
+    "screenshots/production-local-account.png"
+  ],
+  "runtimeErrors": [],
+  "failedRequests": [],
+  "serverErrors": [],
+  "abortedPrefetches": 21,
+  "abortedCompletedRevocations": 1,
+  "paidProviderCalls": 0,
+  "providerLiveEvidence": "not_run_authorization_required"
+}

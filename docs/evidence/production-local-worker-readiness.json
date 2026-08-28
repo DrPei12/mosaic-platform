@@ -1,0 +1,21 @@
+{
+  "status": "ok",
+  "observed_at": "2026-08-27T06:04:12.4493037Z",
+  "checks": [
+    {
+      "worker": "video",
+      "readiness_without_worker": 503,
+      "admission_status": 503,
+      "admission_code": "GENERATION_SUBMISSION_DISABLED",
+      "durable_counts_unchanged": true
+    },
+    {
+      "worker": "media",
+      "readiness_without_worker": 503,
+      "admission_status": 503,
+      "admission_code": "GENERATION_SUBMISSION_DISABLED",
+      "durable_counts_unchanged": true
+    }
+  ],
+  "paid_provider_calls": 0
+}

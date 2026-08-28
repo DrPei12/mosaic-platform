@@ -1,0 +1,41 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-canvas: var(--mosaic-color-canvas);
+  --color-surface: var(--mosaic-color-surface);
+  --color-surface-muted: var(--mosaic-color-surface-muted);
+  --color-ink: var(--mosaic-color-ink);
+  --color-ink-muted: var(--mosaic-color-ink-muted);
+  --color-line: var(--mosaic-color-line);
+  --color-accent: var(--mosaic-color-accent);
+  --font-sans: var(--font-geist-sans), "Noto Sans SC Variable", "Microsoft YaHei", sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--mosaic-color-canvas);
+  color: var(--mosaic-color-ink);
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  background: var(--mosaic-color-canvas);
+  font-family: var(--font-sans);
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+:focus-visible {
+  outline: var(--mosaic-focus-ring-width) solid var(--mosaic-color-accent);
+  outline-offset: var(--mosaic-focus-offset);
+}

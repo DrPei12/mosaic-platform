@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mosaic.internal/schemas/public-product-model.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["product_model_id", "display_name", "category", "task_type", "description", "capabilities", "availability", "pricing_summary"],
+  "properties": {
+    "product_model_id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+    "display_name": { "type": "string", "minLength": 1 },
+    "category": { "enum": ["text", "image", "video", "audio"] },
+    "task_type": { "enum": ["chat", "text_to_image", "text_to_video", "image_to_video", "tts"] },
+    "description": { "type": "string", "minLength": 1 },
+    "capabilities": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+    "input_schema": { "type": "object" },
+    "availability": { "enum": ["available", "maintenance", "unavailable", "demo"] },
+    "pricing_summary": { "type": "string", "minLength": 1 }
+  }
+}

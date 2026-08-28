@@ -1,0 +1,111 @@
+groups:
+  - name: mosaic-api-observability
+    interval: 30s
+    rules:
+      - alert: MosaicApiHighServerErrorRate
+        expr: |
+          sum(rate(mosaic_http_requests_total{status_code=~"5.."}[5m]))
+          /
+          clamp_min(sum(rate(mosaic_http_requests_total[5m])), 1)
+          > 0.05
+        for: 10m
+        labels:
+          severity: page
+          service: mosaic
+        annotations:
+          summary: MOSAIC API 5xx rate is above 5%
+          runbook: docs/runbooks/observability.md#http-errors-and-latency
+
+      - alert: MosaicDependencyNotReady
+        expr: mosaic_dependency_ready{dependency!="api"} == 0
+        for: 5m
+        labels:
+          severity: page
+          service: mosaic
+        annotations:
+          summary: A MOSAIC runtime dependency is not ready
+          runbook: docs/runbooks/observability.md#readiness-and-dependencies
+
+      - alert: MosaicDatabasePoolSaturated
+        expr: |
+          mosaic_db_pool_checked_out
+          /
+          clamp_min(mosaic_db_pool_size, 1)
+          > 0.8
+        for: 10m
+        labels:
+          severity: ticket
+          service: mosaic
+        annotations:
+          summary: MOSAIC database pool is over 80% checked out
+          runbook: docs/runbooks/observability.md#database-pool
+
+      - alert: MosaicOutboxRetrying
+        expr: sum(rate(mosaic_outbox_retry_total[10m])) > 0.1
+        for: 10m
+        labels:
+          severity: ticket
+          service: mosaic
+        annotations:
+          summary: MOSAIC outbox deliveries are repeatedly retrying
+          runbook: docs/runbooks/observability.md#outbox-and-workers
+
+      - alert: MosaicOutboxFenced
+        expr: sum(increase(mosaic_outbox_fenced_total[10m])) > 0
+        for: 5m
+        labels:
+          severity: ticket
+          service: mosaic
+        annotations:
+          summary: MOSAIC outbox fencing rejected a relay mark
+          runbook: docs/runbooks/observability.md#outbox-and-workers
+
+      - alert: MosaicWorkerSubmittedUnknown
+        expr: sum(increase(mosaic_worker_submitted_unknown_total[10m])) > 0
+        for: 1m
+        labels:
+          severity: page
+          service: mosaic
+        annotations:
+          summary: A MOSAIC worker needs external-submission reconciliation
+          runbook: docs/runbooks/observability.md#uncertain-provider-submissions
+
+      - alert: MosaicRedisPermitLoss
+        expr: sum(increase(mosaic_redis_permit_loss_total[10m])) > 0
+        for: 1m
+        labels:
+          severity: page
+          service: mosaic
+        annotations:
+          summary: MOSAIC lost a Redis permit lease
+          runbook: docs/runbooks/observability.md#redis-permits-and-sse
+
+      - alert: MosaicRedisPermitSaturation
+        expr: sum(rate(mosaic_redis_permit_saturation_total[10m])) > 1
+        for: 15m
+        labels:
+          severity: ticket
+          service: mosaic
+        annotations:
+          summary: MOSAIC Redis permit saturation is sustained
+          runbook: docs/runbooks/observability.md#redis-permits-and-sse
+
+      - alert: MosaicBillingInvariantViolation
+        expr: sum(increase(mosaic_billing_invariant_total[10m])) > 0
+        for: 1m
+        labels:
+          severity: page
+          service: mosaic
+        annotations:
+          summary: MOSAIC observed a billing invariant violation
+          runbook: docs/runbooks/observability.md#billing-and-artifacts
+
+      - alert: MosaicArtifactTransferFailures
+        expr: sum(rate(mosaic_artifact_transfer_failures_total[10m])) > 0.05
+        for: 10m
+        labels:
+          severity: ticket
+          service: mosaic
+        annotations:
+          summary: MOSAIC artifact transfer failures are elevated
+          runbook: docs/runbooks/observability.md#billing-and-artifacts

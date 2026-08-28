@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mosaic.internal/schemas/conversation.schema.json",
+  "$defs": {
+    "nonEmptyId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "isoTimestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "message": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["message_id", "role", "content", "status", "created_at"],
+      "properties": {
+        "message_id": { "$ref": "#/$defs/nonEmptyId" },
+        "role": { "enum": ["user", "assistant"] },
+        "content": { "type": "string" },
+        "status": { "enum": ["streaming", "complete", "stopped", "failed"] },
+        "created_at": { "$ref": "#/$defs/isoTimestamp" },
+        "request_id": {
+          "anyOf": [{ "$ref": "#/$defs/nonEmptyId" }, { "type": "null" }]
+        }
+      }
+    },
+    "conversation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "conversation_id",
+        "product_model_id",
+        "title",
+        "messages",
+        "updated_at",
+        "active_request_id",
+        "active_request_cursor"
+      ],
+      "properties": {
+        "conversation_id": { "$ref": "#/$defs/nonEmptyId" },
+        "product_model_id": { "$ref": "#/$defs/nonEmptyId" },
+        "title": { "type": "string", "minLength": 1 },
+        "messages": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/message" }
+        },
+        "updated_at": { "$ref": "#/$defs/isoTimestamp" },
+        "active_request_id": {
+          "anyOf": [{ "$ref": "#/$defs/nonEmptyId" }, { "type": "null" }]
+        },
+        "active_request_cursor": {
+          "anyOf": [{ "type": "integer", "minimum": -1 }, { "type": "null" }],
+          "description": "null means no active request; -1 means an active request has not accepted an event; non-negative values are the last accepted SSE sequence."
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "active_request_id": { "type": "null" },
+            "active_request_cursor": { "type": "null" }
+          }
+        },
+        {
+          "properties": {
+            "active_request_id": { "$ref": "#/$defs/nonEmptyId" },
+            "active_request_cursor": { "type": "integer", "minimum": -1 }
+          }
+        }
+      ]
+    }
+  },
+  "$ref": "#/$defs/conversation"
+}

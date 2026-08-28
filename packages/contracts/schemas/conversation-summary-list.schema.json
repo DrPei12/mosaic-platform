@@ -1,0 +1,8 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mosaic.internal/schemas/conversation-summary-list.schema.json",
+  "type": "array",
+  "items": {
+    "$ref": "https://mosaic.internal/schemas/conversation-summary.schema.json"
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "name": "@mosaic/design-tokens",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./tokens.css": "./src/tokens.css"
+  },
+  "scripts": {
+    "generate": "node scripts/generate-css.mjs",
+    "check": "node scripts/generate-css.mjs --check",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "typescript": "^5.9.0",
+    "vitest": "^4.1.11"
+  }
+}

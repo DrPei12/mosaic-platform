@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mosaic.internal/schemas/model-catalog.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["items"],
+  "properties": {
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["model", "collections"],
+        "properties": {
+          "model": { "$ref": "https://mosaic.internal/schemas/public-product-model.schema.json" },
+          "collections": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": { "enum": ["featured", "popular", "new"] }
+          }
+        }
+      }
+    }
+  }
+}

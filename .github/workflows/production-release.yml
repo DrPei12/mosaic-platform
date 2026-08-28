@@ -1,0 +1,231 @@
+name: Production release verification
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  release-gates:
+    runs-on: ubuntu-latest
+    env:
+      APP_ENVIRONMENT: development
+      APP_VERSION: 0.1.0
+      DATABASE_URL: postgresql+asyncpg://mosaic:mosaic@127.0.0.1:5432/mosaic
+      BILLING_TEST_DATABASE_URL: postgresql+asyncpg://mosaic:mosaic@127.0.0.1:5432/mosaic
+      RLS_TEST_DATABASE_URL: postgresql+asyncpg://mosaic:mosaic@127.0.0.1:5432/mosaic
+      REDIS_URL: redis://127.0.0.1:6379/0
+      RABBITMQ_URL: amqp://mosaic:mosaic@127.0.0.1:5672/
+      RABBITMQ_CHAT_QUEUE: mosaic.chat.inference
+      RABBITMQ_GENERATION_QUEUE: mosaic.generation.execute
+      RABBITMQ_VIDEO_GENERATION_QUEUE: mosaic.generation.video.execute
+      MOSAIC_SESSION_TOKEN_PEPPER: ci-session-token-pepper-2026-08-27-safe
+      AUTH_ALLOWED_ORIGINS: '["http://127.0.0.1:3000"]'
+      SESSION_COOKIE_SECURE: "false"
+      CHAT_SUBMISSION_ENABLED: "true"
+      GENERATION_SUBMISSION_ENABLED: "true"
+      ARTIFACT_STORAGE_BACKEND: s3
+      ARTIFACT_STORAGE_S3_ENDPOINT_URL: http://127.0.0.1:9000
+      ARTIFACT_STORAGE_S3_BUCKET: mosaic-artifacts
+      ARTIFACT_STORAGE_S3_REGION: us-east-1
+      ARTIFACT_STORAGE_S3_ACCESS_KEY_ID: minioadmin
+      ARTIFACT_STORAGE_S3_SECRET_ACCESS_KEY: minioadmin
+      DASHSCOPE_API_KEY: unit-test-key
+      RUN_LIVE_PROVIDER_TESTS: "0"
+      MOSAIC_RELEASE_RUN_CONCURRENCY_GATE: "1"
+      MOSAIC_RELEASE_HMAC_KEY: ${{ secrets.MOSAIC_RELEASE_HMAC_KEY }}
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: mosaic
+          POSTGRES_USER: mosaic
+          POSTGRES_PASSWORD: mosaic
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U mosaic -d mosaic"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+      redis:
+        image: redis:8-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping | grep -q PONG"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+      rabbitmq:
+        image: rabbitmq:4.3-management-alpine
+        env:
+          RABBITMQ_DEFAULT_USER: mosaic
+          RABBITMQ_DEFAULT_PASS: mosaic
+        ports:
+          - 5672:5672
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.19.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: 0.11.28
+
+      - name: Install locked dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm install --frozen-lockfile
+          uv sync --project apps/api --frozen --dev
+
+      - name: Start MinIO service
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --detach --rm --name ci-minio \
+            --env MINIO_ROOT_USER=minioadmin \
+            --env MINIO_ROOT_PASSWORD=minioadmin \
+            --publish 9000:9000 \
+            --publish 9001:9001 \
+            minio/minio:RELEASE.2025-07-23T15-54-02Z \
+            server /data --console-address :9001
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:9000/minio/health/live >/dev/null; then
+              break
+            fi
+            if [ "$attempt" = 60 ]; then
+              docker logs ci-minio
+              exit 1
+            fi
+            sleep 2
+          done
+
+      - name: Check MinIO service
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error http://127.0.0.1:9000/minio/health/live >/dev/null
+          uv run --project apps/api python apps/api/scripts/ensure_artifact_bucket.py
+
+      - name: Migrate and seed
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm migrate:api
+          pnpm seed:catalog
+
+      - name: Real PostgreSQL concurrency gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv run --project apps/api python apps/api/scripts/postgres_concurrency_gate.py
+
+      - name: Static release verification and source tests
+        shell: pwsh
+        run: .\scripts\verify-release.ps1 -RunTests -BuildImages -RequireImageDigests -RequireConfigHmac:$false
+
+      - name: Assert CI receipt is bounded
+        shell: pwsh
+        run: |
+          $receipt = Get-Content -LiteralPath output/release/receipt.json -Raw | ConvertFrom-Json
+          if ($receipt.acceptance_status -ne 'BOUNDED') {
+            throw 'non-live CI must never emit a PASS release receipt'
+          }
+
+      - name: Start API, relays, workers, and Web
+        shell: bash
+        run: |
+          set -euo pipefail
+          pids=()
+          cleanup() {
+            for pid in "${pids[@]}"; do
+              kill "$pid" 2>/dev/null || true
+            done
+            for pid in "${pids[@]}"; do
+              wait "$pid" 2>/dev/null || true
+            done
+          }
+          trap cleanup EXIT
+
+          uv run --project apps/api uvicorn app.main:app --app-dir apps/api --host 127.0.0.1 --port 8000 >"$RUNNER_TEMP/api.log" 2>&1 & pids+=("$!")
+          uv run --project apps/api python apps/api/scripts/outbox_relay.py --watch --owner ci-chat-relay --event-type chat.inference.execute >"$RUNNER_TEMP/chat-relay.log" 2>&1 & pids+=("$!")
+          uv run --project apps/api python apps/api/scripts/outbox_relay.py --watch --owner ci-generation-relay --event-type generation.accepted >"$RUNNER_TEMP/generation-relay.log" 2>&1 & pids+=("$!")
+          uv run --project apps/api python apps/api/scripts/chat_consumer.py --worker-id ci-chat-worker >"$RUNNER_TEMP/chat-worker.log" 2>&1 & pids+=("$!")
+          uv run --project apps/api python apps/api/scripts/generation_consumer.py --queue media --worker-id ci-image-audio-worker >"$RUNNER_TEMP/image-audio-worker.log" 2>&1 & pids+=("$!")
+          uv run --project apps/api python apps/api/scripts/generation_consumer.py --queue video --worker-id ci-video-worker >"$RUNNER_TEMP/video-worker.log" 2>&1 & pids+=("$!")
+          uv run --project apps/api python apps/api/scripts/artifact_cleanup.py --watch --interval-seconds 5 >"$RUNNER_TEMP/artifact-cleanup.log" 2>&1 & pids+=("$!")
+
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:8000/api/v1/health/live >/dev/null; then
+              break
+            fi
+            if [ "$attempt" = 60 ]; then
+              exit 1
+            fi
+            sleep 2
+          done
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:8000/api/v1/health/ready >/dev/null; then
+              break
+            fi
+            if [ "$attempt" = 60 ]; then
+              exit 1
+            fi
+            sleep 2
+          done
+
+          MOSAIC_API_ORIGIN=http://127.0.0.1:8000 NEXT_PUBLIC_MOSAIC_SERVICE_MODE=api pnpm --filter @mosaic/web exec next start --hostname 127.0.0.1 --port 3000 >"$RUNNER_TEMP/web.log" 2>&1 & pids+=("$!")
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:3000/ >/dev/null; then
+              break
+            fi
+            if [ "$attempt" = 60 ]; then
+              exit 1
+            fi
+            sleep 2
+          done
+
+          curl --fail --silent http://127.0.0.1:8000/api/v1/health/live >/dev/null
+          curl --fail --silent http://127.0.0.1:8000/api/v1/health/ready >/dev/null
+          curl --fail --silent http://127.0.0.1:3000/ >/dev/null
+          for pid in "${pids[@]}"; do
+            kill -0 "$pid"
+          done
+
+      - name: Diff whitespace gate
+        shell: bash
+        run: git diff --check
+
+      - name: Stop MinIO service
+        if: always()
+        shell: bash
+        run: docker rm --force ci-minio 2>/dev/null || true

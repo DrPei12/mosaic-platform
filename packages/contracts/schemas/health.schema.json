@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mosaic.internal/schemas/health.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["service", "status", "version"],
+  "properties": {
+    "service": { "const": "mosaic-api" },
+    "status": { "enum": ["ok", "ready"] },
+    "version": { "type": "string", "minLength": 1 }
+  }
+}

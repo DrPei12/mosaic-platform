@@ -1,0 +1,15 @@
+.git
+.worktrees
+output
+node_modules
+**/node_modules
+.next
+**/.next
+.venv
+**/.venv
+__pycache__
+**/__pycache__
+.env
+**/.env
+.env.*
+**/.env.*

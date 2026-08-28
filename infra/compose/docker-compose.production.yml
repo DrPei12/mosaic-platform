@@ -1,0 +1,464 @@
+name: ${MOSAIC_PROJECT_NAME:-mosaic-production}
+
+x-api-image: &api-image ${MOSAIC_API_IMAGE:-mosaic-api:local}
+x-web-image: &web-image ${MOSAIC_WEB_IMAGE:-mosaic-web:local}
+x-api-build: &api-build
+  context: ../..
+  dockerfile: infra/docker/api.Dockerfile
+  args:
+    MOSAIC_BUILD_REVISION: ${MOSAIC_IMAGE_TAG:-local}
+x-web-build: &web-build
+  context: ../..
+  dockerfile: infra/docker/web.Dockerfile
+  args:
+    MOSAIC_API_ORIGIN: ${MOSAIC_API_ORIGIN:-http://api:8000}
+    MOSAIC_BUILD_REVISION: ${MOSAIC_IMAGE_TAG:-local}
+
+x-runtime: &runtime
+  restart: unless-stopped
+  init: true
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+  deploy:
+    resources:
+      limits:
+        cpus: "1.00"
+        memory: 1G
+      reservations:
+        cpus: "0.10"
+        memory: 128M
+
+x-stateful-runtime: &stateful-runtime
+  restart: unless-stopped
+  init: true
+  deploy:
+    resources:
+      limits:
+        cpus: "1.00"
+        memory: 1G
+      reservations:
+        cpus: "0.10"
+        memory: 128M
+
+x-api-environment: &api-environment
+  APP_ENVIRONMENT: ${MOSAIC_APP_ENVIRONMENT:-staging}
+  APP_VERSION: ${MOSAIC_APP_VERSION:-0.1.0}
+  DATABASE_URL: ${MOSAIC_API_DATABASE_URL:?MOSAIC_API_DATABASE_URL must be set}
+  REDIS_URL: ${MOSAIC_REDIS_URL:?MOSAIC_REDIS_URL must be set}
+  RABBITMQ_URL: ${MOSAIC_RABBITMQ_URL:?MOSAIC_RABBITMQ_URL must be set}
+  RABBITMQ_EXCHANGE: ${MOSAIC_RABBITMQ_EXCHANGE:-mosaic.events}
+  RABBITMQ_CHAT_QUEUE: ${MOSAIC_RABBITMQ_CHAT_QUEUE:-mosaic.chat.inference}
+  RABBITMQ_GENERATION_QUEUE: ${MOSAIC_RABBITMQ_GENERATION_QUEUE:-mosaic.generation.execute}
+  RABBITMQ_VIDEO_GENERATION_QUEUE: ${MOSAIC_RABBITMQ_VIDEO_GENERATION_QUEUE:-mosaic.generation.video.execute}
+  SESSION_COOKIE_SECURE: ${MOSAIC_SESSION_COOKIE_SECURE:-true}
+  MOSAIC_SESSION_TOKEN_PEPPER: ${MOSAIC_SESSION_TOKEN_PEPPER:?MOSAIC_SESSION_TOKEN_PEPPER must be injected}
+  AUTH_REGISTRATION_ENABLED: ${MOSAIC_AUTH_REGISTRATION_ENABLED:-false}
+  CHAT_SUBMISSION_ENABLED: ${MOSAIC_CHAT_SUBMISSION_ENABLED:-true}
+  GENERATION_SUBMISSION_ENABLED: ${MOSAIC_GENERATION_SUBMISSION_ENABLED:-true}
+  METRICS_ENABLED: ${MOSAIC_METRICS_ENABLED:-true}
+  METRICS_INTERNAL_TOKEN: ${MOSAIC_METRICS_INTERNAL_TOKEN:-}
+  METRICS_SERVER_ENABLED: "false"
+  AUTH_ALLOWED_ORIGINS: ${MOSAIC_AUTH_ALLOWED_ORIGINS:?MOSAIC_AUTH_ALLOWED_ORIGINS must be set as a JSON array}
+  ARTIFACT_STORAGE_BACKEND: s3
+  ARTIFACT_STORAGE_S3_ENDPOINT_URL: ${MOSAIC_ARTIFACT_STORAGE_S3_ENDPOINT_URL:?MOSAIC_ARTIFACT_STORAGE_S3_ENDPOINT_URL must be set}
+  ARTIFACT_STORAGE_S3_BUCKET: ${MOSAIC_ARTIFACT_STORAGE_S3_BUCKET:?MOSAIC_ARTIFACT_STORAGE_S3_BUCKET must be set}
+  ARTIFACT_STORAGE_S3_REGION: ${MOSAIC_ARTIFACT_STORAGE_S3_REGION:-us-east-1}
+  ARTIFACT_STORAGE_S3_ACCESS_KEY_ID: ${MOSAIC_ARTIFACT_STORAGE_S3_ACCESS_KEY_ID:?MOSAIC_ARTIFACT_STORAGE_S3_ACCESS_KEY_ID must be set}
+  ARTIFACT_STORAGE_S3_SECRET_ACCESS_KEY: ${MOSAIC_ARTIFACT_STORAGE_S3_SECRET_ACCESS_KEY:?MOSAIC_ARTIFACT_STORAGE_S3_SECRET_ACCESS_KEY must be set}
+  DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:?DASHSCOPE_API_KEY must be injected for readiness; CI must use a non-provider placeholder}
+
+x-owner-environment: &owner-environment
+  <<: *api-environment
+  DATABASE_URL: ${MOSAIC_OWNER_DATABASE_URL:?MOSAIC_OWNER_DATABASE_URL must be set}
+
+x-worker-environment: &worker-environment
+  <<: *api-environment
+  DATABASE_URL: ${MOSAIC_WORKER_DATABASE_URL:?MOSAIC_WORKER_DATABASE_URL must be set}
+  METRICS_SERVER_ENABLED: ${MOSAIC_WORKER_METRICS_ENABLED:-true}
+  METRICS_BIND_HOST: ${MOSAIC_METRICS_BIND_HOST:-0.0.0.0}
+  METRICS_PORT: ${MOSAIC_WORKER_METRICS_PORT:-9090}
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${MOSAIC_POSTGRES_DB:-mosaic}
+      POSTGRES_USER: ${MOSAIC_POSTGRES_USER:?MOSAIC_POSTGRES_USER must be set}
+      POSTGRES_PASSWORD: ${MOSAIC_POSTGRES_PASSWORD:?MOSAIC_POSTGRES_PASSWORD must be set}
+      MOSAIC_APP_DB_USER: ${MOSAIC_APP_DB_USER:?MOSAIC_APP_DB_USER must be set}
+      MOSAIC_APP_DB_PASSWORD: ${MOSAIC_APP_DB_PASSWORD:?MOSAIC_APP_DB_PASSWORD must be set}
+      MOSAIC_WORKER_DB_USER: ${MOSAIC_WORKER_DB_USER:?MOSAIC_WORKER_DB_USER must be set}
+      MOSAIC_WORKER_DB_PASSWORD: ${MOSAIC_WORKER_DB_PASSWORD:?MOSAIC_WORKER_DB_PASSWORD must be set}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+    volumes:
+      - mosaic_production_postgres:/var/lib/postgresql/data
+      - ../postgres/init/001-runtime-roles.sh:/docker-entrypoint-initdb.d/001-runtime-roles.sh:ro
+    <<: *stateful-runtime
+
+  redis:
+    image: redis:8-alpine
+    environment:
+      MOSAIC_REDIS_PASSWORD: ${MOSAIC_REDIS_PASSWORD:?MOSAIC_REDIS_PASSWORD must be set}
+    command:
+      - sh
+      - -c
+      - exec redis-server --appendonly yes --appendfsync everysec --requirepass "$${MOSAIC_REDIS_PASSWORD}"
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$MOSAIC_REDIS_PASSWORD\" ping | grep -q PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    volumes:
+      - mosaic_production_redis:/data
+    <<: *stateful-runtime
+
+  rabbitmq:
+    image: rabbitmq:4.3-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: ${MOSAIC_RABBITMQ_USER:?MOSAIC_RABBITMQ_USER must be set}
+      RABBITMQ_DEFAULT_PASS: ${MOSAIC_RABBITMQ_PASSWORD:?MOSAIC_RABBITMQ_PASSWORD must be set}
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
+    volumes:
+      - mosaic_production_rabbitmq:/var/lib/rabbitmq
+    <<: *stateful-runtime
+
+  minio:
+    image: minio/minio:RELEASE.2025-07-23T15-54-02Z
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${MOSAIC_ARTIFACT_STORAGE_S3_ACCESS_KEY_ID:?MOSAIC_ARTIFACT_STORAGE_S3_ACCESS_KEY_ID must be set}
+      MINIO_ROOT_PASSWORD: ${MOSAIC_ARTIFACT_STORAGE_S3_SECRET_ACCESS_KEY:?MOSAIC_ARTIFACT_STORAGE_S3_SECRET_ACCESS_KEY must be set}
+    volumes:
+      - mosaic_production_minio:/data
+    <<: *stateful-runtime
+
+  minio-ready:
+    image: curlimages/curl:8.15.0
+    entrypoint: ["curl"]
+    command: ["--fail", "--silent", "--show-error", "--retry", "60", "--retry-delay", "2", "--retry-connrefused", "http://minio:9000/minio/health/live"]
+    depends_on:
+      minio:
+        condition: service_started
+    restart: "no"
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 128M
+
+  seed-storage:
+    image: *api-image
+    build: *api-build
+    environment:
+      ARTIFACT_STORAGE_S3_ENDPOINT_URL: ${MOSAIC_ARTIFACT_STORAGE_S3_SEED_ENDPOINT_URL:?MOSAIC_ARTIFACT_STORAGE_S3_SEED_ENDPOINT_URL must be set}
+      ARTIFACT_STORAGE_S3_BUCKET: ${MOSAIC_ARTIFACT_STORAGE_S3_BUCKET:?MOSAIC_ARTIFACT_STORAGE_S3_BUCKET must be set}
+      ARTIFACT_STORAGE_S3_REGION: ${MOSAIC_ARTIFACT_STORAGE_S3_REGION:-us-east-1}
+      ARTIFACT_STORAGE_S3_ACCESS_KEY_ID: ${MOSAIC_ARTIFACT_STORAGE_S3_ACCESS_KEY_ID:?MOSAIC_ARTIFACT_STORAGE_S3_ACCESS_KEY_ID must be set}
+      ARTIFACT_STORAGE_S3_SECRET_ACCESS_KEY: ${MOSAIC_ARTIFACT_STORAGE_S3_SECRET_ACCESS_KEY:?MOSAIC_ARTIFACT_STORAGE_S3_SECRET_ACCESS_KEY must be set}
+    command: ["/app/apps/api/.venv/bin/python", "/app/apps/api/scripts/ensure_artifact_bucket.py"]
+    depends_on:
+      minio-ready:
+        condition: service_completed_successfully
+    restart: "no"
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 256M
+
+  migration:
+    image: *api-image
+    build: *api-build
+    environment: *owner-environment
+    command: ["/app/apps/api/.venv/bin/alembic", "-c", "/app/apps/api/alembic.ini", "upgrade", "head"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    init: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    deploy:
+      resources:
+        limits:
+          cpus: "1.00"
+          memory: 768M
+
+  seed-catalog:
+    image: *api-image
+    build: *api-build
+    environment:
+      <<: *owner-environment
+      MOSAIC_LIVE_EVIDENCE_HMAC_KEY: ${MOSAIC_LIVE_EVIDENCE_HMAC_KEY:?MOSAIC_LIVE_EVIDENCE_HMAC_KEY must be injected}
+    command: ["/app/apps/api/.venv/bin/python", "/app/apps/api/scripts/seed_product_catalog.py"]
+    depends_on:
+      migration:
+        condition: service_completed_successfully
+    restart: "no"
+    init: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    deploy:
+      resources:
+        limits:
+          cpus: "1.00"
+          memory: 768M
+
+  api:
+    image: *api-image
+    build: *api-build
+    environment: *api-environment
+    command: ["/app/apps/api/.venv/bin/uvicorn", "app.main:app", "--app-dir", "/app/apps/api", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      seed-catalog:
+        condition: service_completed_successfully
+      seed-storage:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "/app/apps/api/.venv/bin/python", "-c", "import urllib.request; r=urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health/live', timeout=2); raise SystemExit(0 if r.status == 200 else 1)"]
+      interval: 10s
+      timeout: 4s
+      retries: 12
+      start_period: 20s
+    expose:
+      - "8000"
+    read_only: true
+    tmpfs:
+      - /tmp
+    <<: *runtime
+
+  web:
+    image: *web-image
+    build: *web-build
+    environment:
+      MOSAIC_API_ORIGIN: ${MOSAIC_API_ORIGIN:-http://api:8000}
+      NEXT_PUBLIC_MOSAIC_SERVICE_MODE: api
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "${MOSAIC_WEB_BIND_ADDRESS:-127.0.0.1}:${MOSAIC_WEB_PORT:-3000}:3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 10s
+      timeout: 4s
+      retries: 12
+      start_period: 20s
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /app/.next/cache
+    <<: *runtime
+
+  chat-relay:
+    image: *api-image
+    build: *api-build
+    environment: *worker-environment
+    command: ["/app/apps/api/.venv/bin/python", "/app/apps/api/scripts/outbox_relay.py", "--watch", "--owner", "production-chat-relay", "--event-type", "chat.inference.execute"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      seed-catalog:
+        condition: service_completed_successfully
+      seed-storage:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "/bin/kill -0 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 15s
+    expose:
+      - "9090"
+    read_only: true
+    tmpfs:
+      - /tmp
+    <<: *runtime
+
+  generation-relay:
+    image: *api-image
+    build: *api-build
+    environment: *worker-environment
+    command: ["/app/apps/api/.venv/bin/python", "/app/apps/api/scripts/outbox_relay.py", "--watch", "--owner", "production-generation-relay", "--event-type", "generation.accepted"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      seed-catalog:
+        condition: service_completed_successfully
+      seed-storage:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "/bin/kill -0 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 15s
+    expose:
+      - "9090"
+    read_only: true
+    tmpfs:
+      - /tmp
+    <<: *runtime
+
+  chat-worker:
+    image: *api-image
+    build: *api-build
+    environment: *worker-environment
+    command: ["/app/apps/api/.venv/bin/python", "/app/apps/api/scripts/chat_consumer.py", "--worker-id", "production-chat-worker"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      seed-catalog:
+        condition: service_completed_successfully
+      seed-storage:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "/bin/kill -0 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 20s
+    expose:
+      - "9090"
+    read_only: true
+    tmpfs:
+      - /tmp
+    <<: *runtime
+
+  image-audio-worker:
+    image: *api-image
+    build: *api-build
+    environment: *worker-environment
+    command: ["/app/apps/api/.venv/bin/python", "/app/apps/api/scripts/generation_consumer.py", "--queue", "media", "--worker-id", "production-image-audio-worker"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      seed-catalog:
+        condition: service_completed_successfully
+      seed-storage:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "/bin/kill -0 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 20s
+    expose:
+      - "9090"
+    read_only: true
+    tmpfs:
+      - /tmp
+    <<: *runtime
+
+  video-worker:
+    image: *api-image
+    build: *api-build
+    environment: *worker-environment
+    command: ["/app/apps/api/.venv/bin/python", "/app/apps/api/scripts/generation_consumer.py", "--queue", "video", "--worker-id", "production-video-worker"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      seed-catalog:
+        condition: service_completed_successfully
+      seed-storage:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "/bin/kill -0 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 20s
+    expose:
+      - "9090"
+    read_only: true
+    tmpfs:
+      - /tmp
+    <<: *runtime
+
+  artifact-cleanup:
+    image: *api-image
+    build: *api-build
+    environment: *worker-environment
+    command: ["/app/apps/api/.venv/bin/python", "/app/apps/api/scripts/artifact_cleanup.py", "--watch", "--interval-seconds", "30"]
+    depends_on:
+      seed-catalog:
+        condition: service_completed_successfully
+      seed-storage:
+        condition: service_completed_successfully
+      minio-ready:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "/bin/kill -0 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 20s
+    read_only: true
+    tmpfs:
+      - /tmp
+    <<: *runtime
+
+volumes:
+  mosaic_production_postgres:
+  mosaic_production_redis:
+  mosaic_production_rabbitmq:
+  mosaic_production_minio:

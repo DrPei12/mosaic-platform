@@ -1,0 +1,74 @@
+:root {
+  --mosaic-color-canvas: #F5F6F8;
+  --mosaic-color-surface: #FFFFFF;
+  --mosaic-color-surface-muted: #ECEFF3;
+  --mosaic-color-ink: #15171A;
+  --mosaic-color-ink-muted: #667085;
+  --mosaic-color-line: #D7DCE3;
+  --mosaic-color-accent: #2F5BEA;
+  --mosaic-color-danger: #C63C45;
+  --mosaic-color-warning: #A66616;
+  --mosaic-color-success: #227A53;
+  --mosaic-radius-control: 8px;
+  --mosaic-radius-surface: 12px;
+  --mosaic-radius-media: 10px;
+  --mosaic-radius-pill: 999px;
+  --mosaic-motion-fast: 180ms;
+  --mosaic-motion-normal: 240ms;
+  --mosaic-motion-page: 360ms;
+  --mosaic-motion-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --mosaic-layout-content: 1280px;
+  --mosaic-layout-workspace: 1440px;
+  --mosaic-layout-nav: 240px;
+  --mosaic-layout-compact-breakpoint: 1024px;
+  --mosaic-layout-single-column-breakpoint: 768px;
+  --mosaic-layout-top-bar-mobile: 64px;
+  --mosaic-layout-top-bar-desktop: 64px;
+  --mosaic-layout-mobile-bottom-navigation: 76px;
+  --mosaic-layout-conversation-column: 328px;
+  --mosaic-layout-composer-panel: 104px;
+  --mosaic-layout-task-header: 64px;
+  --mosaic-layout-task-interaction: 920px;
+  --mosaic-layout-task-message: 880px;
+  --mosaic-layout-task-composer: 120px;
+  --mosaic-typography-display-font-size: 56px;
+  --mosaic-typography-display-line-height: 64px;
+  --mosaic-typography-h1-font-size: 40px;
+  --mosaic-typography-h1-line-height: 48px;
+  --mosaic-typography-h2-font-size: 30px;
+  --mosaic-typography-h2-line-height: 38px;
+  --mosaic-typography-h3-font-size: 22px;
+  --mosaic-typography-h3-line-height: 28px;
+  --mosaic-typography-body-font-size: 16px;
+  --mosaic-typography-body-line-height: 24px;
+  --mosaic-typography-small-font-size: 14px;
+  --mosaic-typography-small-line-height: 20px;
+  --mosaic-typography-meta-font-size: 12px;
+  --mosaic-typography-meta-line-height: 16px;
+  --mosaic-typography-micro-font-size: 11px;
+  --mosaic-typography-micro-line-height: 16px;
+  --mosaic-spacing-4: 4px;
+  --mosaic-spacing-8: 8px;
+  --mosaic-spacing-12: 12px;
+  --mosaic-spacing-16: 16px;
+  --mosaic-spacing-24: 24px;
+  --mosaic-spacing-32: 32px;
+  --mosaic-spacing-40: 40px;
+  --mosaic-spacing-48: 48px;
+  --mosaic-spacing-64: 64px;
+  --mosaic-spacing-96: 96px;
+  --mosaic-grid-columns: 12;
+  --mosaic-grid-desktop-gutter: 24px;
+  --mosaic-grid-mobile-gutter: 16px;
+  --mosaic-border-width: 1px;
+  --mosaic-focus-ring-width: 3px;
+  --mosaic-focus-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --mosaic-motion-fast: 0ms;
+    --mosaic-motion-normal: 0ms;
+    --mosaic-motion-page: 0ms;
+  }
+}
