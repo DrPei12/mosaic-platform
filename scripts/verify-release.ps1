@@ -400,6 +400,7 @@ if ($dockerAvailable -and -not $StaticOnly) {
             $imageDigests[$service] = $digestByImage[$imageRef]
         }
         $imageDigestPath = Resolve-RepoPath "output/release/.image-digests.json"
+        New-Item -ItemType Directory -Force -Path (Split-Path -Parent $imageDigestPath) | Out-Null
         $imageManifest = [ordered]@{
             schema_version = 1
             generated_at_utc = (Get-Date).ToUniversalTime().ToString("o")
