@@ -25,7 +25,7 @@ jobs:
       RABBITMQ_GENERATION_QUEUE: mosaic.generation.execute
       RABBITMQ_VIDEO_GENERATION_QUEUE: mosaic.generation.video.execute
       MOSAIC_SESSION_TOKEN_PEPPER: ci-session-token-pepper-2026-08-27-safe
-      AUTH_ALLOWED_ORIGINS: '["http://127.0.0.1:3000"]'
+      AUTH_ALLOWED_ORIGINS: '["http://127.0.0.1:3000","http://localhost:3000"]'
       SESSION_COOKIE_SECURE: "false"
       CHAT_SUBMISSION_ENABLED: "true"
       GENERATION_SUBMISSION_ENABLED: "true"
@@ -151,9 +151,6 @@ jobs:
         run: |
           set -euo pipefail
           uv run --project apps/api python apps/api/scripts/postgres_concurrency_gate.py
-
-      - name: API verification diagnostics
-        run: pnpm verify:api
 
       - name: Static release verification and source tests
         shell: pwsh

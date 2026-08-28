@@ -18,6 +18,7 @@ def test_checked_in_non_secret_env_example_is_loadable(
     for name in (
         "APP_ENVIRONMENT",
         "AUTH_REGISTRATION_ENABLED",
+        "AUTH_ALLOWED_ORIGINS",
         "ARTIFACT_STORAGE_BACKEND",
         "ARTIFACT_STORAGE_S3_ENDPOINT_URL",
         "ARTIFACT_STORAGE_S3_BUCKET",
