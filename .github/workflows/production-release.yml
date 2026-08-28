@@ -152,6 +152,9 @@ jobs:
           set -euo pipefail
           uv run --project apps/api python apps/api/scripts/postgres_concurrency_gate.py
 
+      - name: API verification diagnostics
+        run: pnpm verify:api
+
       - name: Static release verification and source tests
         shell: pwsh
         run: .\scripts\verify-release.ps1 -BaselineCommit $env:MOSAIC_PUBLIC_SNAPSHOT_BASELINE -RunTests -BuildImages -RequireImageDigests -RequireConfigHmac:$false
