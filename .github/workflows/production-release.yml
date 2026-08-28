@@ -35,6 +35,7 @@ jobs:
       ARTIFACT_STORAGE_S3_REGION: us-east-1
       ARTIFACT_STORAGE_S3_ACCESS_KEY_ID: minioadmin
       ARTIFACT_STORAGE_S3_SECRET_ACCESS_KEY: minioadmin
+      RUN_MINIO_INTEGRATION: "1"
       DASHSCOPE_API_KEY: unit-test-key
       RUN_LIVE_PROVIDER_TESTS: "0"
       MOSAIC_RELEASE_RUN_CONCURRENCY_GATE: "1"
@@ -155,10 +156,6 @@ jobs:
       - name: Static release verification and source tests
         shell: pwsh
         run: .\scripts\verify-release.ps1 -BaselineCommit $env:MOSAIC_PUBLIC_SNAPSHOT_BASELINE -RunTests -BuildImages -RequireImageDigests -RequireConfigHmac:$false
-
-      - name: API diagnostics after release failure
-        if: failure()
-        run: pnpm verify:api
 
       - name: Assert CI receipt is bounded
         shell: pwsh

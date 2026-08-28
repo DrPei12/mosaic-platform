@@ -161,10 +161,14 @@ class _SuccessfulLoginService:
 
 
 @pytest.mark.asyncio
-async def test_login_returns_exact_session_and_secure_cookie_attributes() -> None:
+async def test_login_returns_exact_session_and_secure_cookie_attributes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     from app.auth.dependencies import get_auth_service
+    from app.core.settings import settings
     from app.main import create_app
 
+    monkeypatch.setattr(settings, "session_cookie_secure", True)
     app = create_app()
     app.dependency_overrides[get_auth_service] = lambda: _SuccessfulLoginService()
     try:
